@@ -1,9 +1,0 @@
-[package]
-name = "litex"
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
-
-[dependencies]
-tock-registers = { path = "../../libraries/tock-register-interface" }
-kernel = { path = "../../kernel" }

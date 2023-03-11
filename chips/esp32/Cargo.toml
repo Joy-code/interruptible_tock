@@ -1,8 +1,0 @@
-[package]
-name = "esp32"
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
-
-[dependencies]
-kernel = { path = "../../kernel" }
