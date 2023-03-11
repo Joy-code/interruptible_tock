@@ -1,0 +1,3 @@
+[submodule "boards/imix/libtock-c"]
+	path = boards/imix/libtock-c
+	url = https://github.com/tock/libtock-c.git
