@@ -1163,6 +1163,22 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         switch_reason
     }
 
+    fn new_switch_to(&self) {
+        // Cannot switch to an invalid process
+        if !self.is_running() {
+            return;
+        }
+
+        // Switch to the process. We guarantee that the memory pointers
+        // we pass are valid, ensuring this context switch is safe.
+        // Therefore we encapsulate the `unsafe`.
+        self.stored_state.map_or((), |stored_state| unsafe {
+            self.chip
+                .userspace_kernel_boundary()
+                .new_switch_to_process(self.chip, stored_state);
+        });
+    }
+
     fn debug_syscall_count(&self) -> usize {
         self.debug.map_or(0, |debug| debug.syscall_count)
     }

@@ -8,7 +8,13 @@ use core::ops::Range;
 use core::ptr::{self, read_volatile, write_volatile};
 use kernel::errorcode::ErrorCode;
 
+use crate::scb;
 use crate::CortexMVariant;
+use kernel::debug;
+
+use kernel::platform::chip::Chip;
+use kernel::platform::platform::KernelResources;
+use kernel::process;
 
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
@@ -33,6 +39,16 @@ pub static mut APP_HARD_FAULT: usize = 0;
 #[no_mangle]
 #[used]
 pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
+
+/// Stores the current value of the process stack pointer
+#[no_mangle]
+#[used]
+pub static mut PROCESS_STACK_POINTER: *const usize = &0usize as *const usize;
+
+/// Stores the current value of the process registers
+#[no_mangle]
+#[used]
+pub static mut PROCESS_REGS: [usize; 8] = [0; 8];
 
 // Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
 const SVC_FRAME_SIZE: usize = 32;
@@ -310,6 +326,82 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         };
 
         (switch_reason, Some(new_stack_pointer as *const u8))
+    }
+
+    unsafe fn new_switch_to_process<C: Chip>(&self, chip: &C, state: &mut CortexMStoredState) {
+        unsafe {
+            chip.atomic(|| {
+                // Update PSP and ProcessRegs global variables
+                PROCESS_STACK_POINTER = state.psp as *const usize;
+                PROCESS_REGS = state.regs;
+
+                // Set the PendSV bit to switch to userspace
+                scb::set_pendsv();
+            });
+        }
+    }
+
+    unsafe extern "C" fn handle_svc_call<KR: KernelResources<C>, C: Chip>(
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &mut CortexMStoredState,
+        resources: &KR,
+        process: &dyn process::Process,
+    ) {
+        // We need to keep track of the current stack pointer.
+        let new_stack_pointer = read_volatile(&PROCESS_STACK_POINTER);
+        state.psp = new_stack_pointer as usize;
+
+        // We need to validate that the stack pointer and the SVC frame are
+        // within process accessible memory. Alignment is guaranteed by
+        // hardware.
+        let invalid_stack_pointer = state.psp < accessible_memory_start as usize
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
+
+        // Check to see if the svc_handler was called and the process called a
+        // syscall.
+        let syscall_fired = read_volatile(&SYSCALL_FIRED);
+        write_volatile(&mut SYSCALL_FIRED, 0);
+
+        // If the process called a syscall and did not fault, determine which
+        // syscall was fired
+        if invalid_stack_pointer {
+            // Process faulted, set fault state
+            process.set_fault_state()
+        } else if syscall_fired == 1 {
+            // Save these fields after a syscall. If this is a synchronous
+            // syscall (i.e. we return a value to the app immediately) then this
+            // will have no effect. If we are doing something like `yield()`,
+            // however, then we need to have this state.
+            state.yield_pc = ptr::read(new_stack_pointer.offset(6));
+            state.psr = ptr::read(new_stack_pointer.offset(7));
+
+            // Get the syscall arguments and return them along with the syscall.
+            // It's possible the app did something invalid, in which case we put
+            // the app in the fault state.
+            let r0 = ptr::read(new_stack_pointer.offset(0));
+            let r1 = ptr::read(new_stack_pointer.offset(1));
+            let r2 = ptr::read(new_stack_pointer.offset(2));
+            let r3 = ptr::read(new_stack_pointer.offset(3));
+
+            // Get the actual SVC number.
+            let pcptr = ptr::read((new_stack_pointer as *const *const u16).offset(6));
+            let svc_instr = ptr::read(pcptr.offset(-1));
+            let svc_num = (svc_instr & 0xff) as u8;
+
+            // Use the helper function to convert these raw values into a Tock
+            // `Syscall` type.
+            let syscall =
+                kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3);
+
+            // Call the kernel's handle_syscall function
+            match syscall {
+                Some(s) => kernel::Kernel::handle_syscall(resources, process, s),
+                None => process.set_fault_state(),
+            };
+        }
+
+        // Return back to the svc_handler
     }
 
     unsafe fn print_context(

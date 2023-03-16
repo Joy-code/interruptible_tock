@@ -4,10 +4,11 @@
 
 pub mod chip;
 pub mod mpu;
+pub mod platform;
 pub mod scheduler_timer;
 pub mod watchdog;
 
-pub(crate) mod platform;
+// pub(crate) mod platform;
 
 pub use self::platform::ContextSwitchCallback;
 pub use self::platform::KernelResources;

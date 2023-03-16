@@ -78,9 +78,12 @@ pub trait CortexMVariant {
     /// to mark the interrupt as pending.
     const SYSTICK_HANDLER: unsafe extern "C" fn();
 
-    /// This is called after a `svc` instruction, both when switching to
-    /// userspace and when userspace makes a system call.
+    /// This is called after a `svc` instruction when userspace makes a system
+    /// call.
     const SVC_HANDLER: unsafe extern "C" fn();
+
+    /// This is called after the pendsv bit is set, to switch to userspace.
+    const PENDSV_HANDLER: unsafe extern "C" fn();
 
     /// Hard fault handler.
     const HARD_FAULT_HANDLER: unsafe extern "C" fn();
@@ -199,6 +202,122 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     movt LR, #0xFFFF
     bx lr",
         options(noreturn)
+    );
+}
+
+/// Modified handler of `svc` instructions on ARMv7-M
+/// that processes SVC calls directly in handler mode.
+///
+/// For documentation of this function, please see
+/// [`CortexMVariant::SVC_HANDLER`].
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
+#[naked]
+pub unsafe extern "C" fn svc_handler_arm_v7m() {
+    use core::arch::asm;
+    asm!(
+    "
+    // When execution returns here we have switched back to the kernel from the
+    // application.
+
+    // Push non-hardware-stacked registers into the saved state for the
+    // application.
+    stmia r1, {{r4-r11}}
+
+    // Update the user stack pointer with the current value after the
+    // application has executed.
+    mrs r0, PSP   // r0 = PSP
+
+    // Need to restore r6, r7 and r12 since we clobbered them when switching to and
+    // from the app.
+    mov r6, r2
+    mov r7, r3
+    mov r9, r12
+
+
+    // Call external function to determine reason for context switch and 
+    // handle syscall accordingly
+
+    // {fill regs with fn arguments}
+    call syscall.handle_svc_call
+
+    // Switch back to thread mode with MSP
+    mov r0, #0
+    msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
+
+    // This is a special address to return Thread mode with Main stack
+    movw LR, #0xFFF9
+    movt LR, #0xFFFF
+    bx lr",
+    inout("r0") PROCESS_STACK_POINTER,
+    inout("r1") PROCESS_REGS,
+    out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, out("r10") _,
+    out("r11") _, out("r12") _
+    );
+}
+
+/// Handler of pendsv instruction
+///
+/// For documentation of this function, please see
+/// [`CortexMVariant::PENDSV_HANDLER`].
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
+#[naked]
+pub unsafe extern "C" fn pendsv_handler_arm_v7m() {
+    use core::arch::asm;
+    asm!(
+        "
+        // Rust `asm!()` macro (as of May 2021) will not let us mark r6, r7 and r9
+        // as clobbers. r6 and r9 is used internally by LLVM, and r7 is used for
+        // the frame pointer. However, in the process of restoring and saving the
+        // process's registers, we do in fact clobber r6, r7 and r9. So, we work
+        // around this by doing our own manual saving of r6 using r2, r7 using r3,
+        // r9 using r12, and then mark those as clobbered.
+        mov r2, r6
+        mov r3, r7
+        mov r12, r9
+
+        // The arguments passed in are:
+        // - `r0` is the bottom of the user stack
+        // - `r1` is a reference to the process registers
+
+        // Load bottom of stack into Process Stack Pointer.
+        msr psp, r0  // PSP = r0
+
+        // Load non-hardware-stacked registers from the process stored state. Ensure
+        // that the address register (right now r1) is stored in a callee saved
+        // register.
+        ldmia r1, {{r4-r11}}
+
+        // If we get here, then this is a context switch from the kernel to the
+        // application. Set thread mode to unprivileged to run the application.
+        mov r0, #1
+        msr CONTROL, r0
+        /* CONTROL writes must be followed by ISB */
+        /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+        isb
+
+        // This is a special address to return Thread mode with Process stack
+        movw lr, #0xfffd
+        movt lr, #0xffff
+        // Switch to the app.
+        bx lr
+        ",
+        inout("r0") PROCESS_STACK_POINTER,
+        in("r1") PROCESS_REGS,
+        out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, out("r10") _,
+        out("r11") _, out("r12") _
     );
 }
 
@@ -925,6 +1044,11 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
+    unimplemented!()
+}
+
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn pendsv_handler_arm_v7m() {
     unimplemented!()
 }
 

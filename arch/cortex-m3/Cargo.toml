@@ -1,9 +1,0 @@
-[package]
-name = "cortexm3"
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
-
-[dependencies]
-kernel = { path = "../../kernel" }
-cortexm = { path = "../cortex-m" }

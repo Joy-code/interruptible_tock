@@ -669,6 +669,11 @@ pub trait Process {
     /// switched to.
     fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
+    /// Sets the PendSV bit to context switch to a process
+    ///
+    /// This will also update the global SP and ProcessState variables
+    fn new_switch_to(&self);
+
     /// Return process state information related to the location in memory
     /// of various process data structures.
     fn get_addresses(&self) -> ProcessAddresses;

@@ -1,13 +1,8 @@
 [workspace]
 members = [
     "arch/cortex-m",
-    "arch/cortex-m0",
-    "arch/cortex-m0p",
-    "arch/cortex-m3",
     "arch/cortex-m4",
-    "arch/cortex-m7",
     "arch/riscv",
-    "arch/rv32i",
     "boards/imix",
     "capsules/core",
     "capsules/extra",

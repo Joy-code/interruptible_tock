@@ -8,6 +8,9 @@ use crate::process;
 
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
 
+use crate::platform::chip::Chip;
+use crate::platform::platform::KernelResources;
+
 /// Helper function to split a u64 into a higher and lower u32.
 ///
 /// Used in encoding 64-bit wide system call return values on 32-bit
@@ -631,6 +634,20 @@ pub trait UserspaceKernelBoundary {
         app_brk: *const u8,
         state: &mut Self::StoredState,
     ) -> (ContextSwitchReason, Option<*const u8>);
+
+    /// New funciton to update the PSP and ProcessRegs global variables and set
+    /// the PendSV bit
+    unsafe fn new_switch_to_process<C: Chip>(&self, chip: &C, state: &mut Self::StoredState);
+
+    /// New function to handle svc call in handler mode, called from the svc
+    /// handler
+    unsafe extern "C" fn handle_svc_call<KR: KernelResources<C>, C: Chip>(
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &mut Self::StoredState,
+        resources: &KR,
+        process: &dyn process::Process,
+    );
 
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by the stored state for that process.

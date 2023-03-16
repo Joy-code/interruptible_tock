@@ -475,9 +475,26 @@ impl Kernel {
     ) -> ! {
         resources.watchdog().setup();
         // Before we begin, verify that deferred calls were soundly setup.
-        DeferredCall::verify_setup();
+        // DeferredCall::verify_setup();
+
+        // Switch to process via PendSV
+        let scheduler = resources.scheduler();
+        resources.watchdog().tickle();
+        match scheduler.next() {
+            SchedulingDecision::RunProcess((processid, _)) => {
+                self.process_map_or((), processid, |process| {
+                    process.new_switch_to();
+                });
+            }
+            SchedulingDecision::TrySleep => {
+                debug!("No process selected, going to sleep.\n");
+            }
+        }
+
+        // Loop with WFI to wait for process to call svc
         loop {
-            self.kernel_loop_operation(resources, chip, ipc, false, capability);
+            chip.sleep();
+            // self.kernel_loop_operation(resources, chip, ipc, false, capability);
         }
     }
 
@@ -590,7 +607,10 @@ impl Kernel {
                     process.setup_mpu();
                     chip.mpu().enable_app_mpu();
                     scheduler_timer.arm();
+
+                    // Call PendSV here: process.new_switch_to();
                     let context_switch_reason = process.switch_to();
+
                     scheduler_timer.disarm();
                     chip.mpu().disable_app_mpu();
 
@@ -610,7 +630,7 @@ impl Kernel {
                             }
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
-                            self.handle_syscall(resources, process, syscall);
+                            crate::Kernel::handle_syscall(resources, process, syscall);
                         }
                         Some(ContextSwitchReason::Interrupted) => {
                             if scheduler_timer.get_remaining_us().is_none() {
@@ -765,8 +785,7 @@ impl Kernel {
     /// driver system calls to peripheral driver capsules through the platforms
     /// `with_driver` method.
     #[inline]
-    fn handle_syscall<KR: KernelResources<C>, C: Chip>(
-        &self,
+    pub fn handle_syscall<KR: KernelResources<C>, C: Chip>(
         resources: &KR,
         process: &dyn process::Process,
         syscall: Syscall,

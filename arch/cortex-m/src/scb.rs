@@ -268,6 +268,15 @@ register_bitfields![u32,
 
 const SCB: StaticRef<ScbRegisters> = unsafe { StaticRef::new(0xE000ED00 as *const ScbRegisters) };
 
+/// Sets the PendSV bit
+///
+/// Results in a context switch back to user space.
+pub unsafe fn set_pendsv() {
+    use core::arch::asm;
+    SCB.icsr.modify(InterruptControlAndState::PENDSVSET::SET);
+    asm!("isb");
+}
+
 /// Allow the core to go into deep sleep on WFI.
 ///
 /// The specific definition of "deep sleep" is chip specific.

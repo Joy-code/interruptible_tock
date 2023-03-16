@@ -265,6 +265,7 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     }
 
     fn sleep(&self) {
+        /*
         if pm::deep_sleep_ready() {
             unsafe {
                 cortexm4::scb::set_sleepdeep();
@@ -274,6 +275,7 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
                 cortexm4::scb::unset_sleepdeep();
             }
         }
+        */
 
         unsafe {
             cortexm4::support::wfi();

@@ -27,6 +27,7 @@ impl cortexm::CortexMVariant for CortexM4 {
     const GENERIC_ISR: unsafe extern "C" fn() = cortexm::generic_isr_arm_v7m;
     const SYSTICK_HANDLER: unsafe extern "C" fn() = cortexm::systick_handler_arm_v7m;
     const SVC_HANDLER: unsafe extern "C" fn() = cortexm::svc_handler_arm_v7m;
+    const PENDSV_HANDLER: unsafe extern "C" fn() = cortexm::pendsv_handler_arm_v7m;
     const HARD_FAULT_HANDLER: unsafe extern "C" fn() = cortexm::hard_fault_handler_arm_v7m;
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
