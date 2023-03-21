@@ -608,7 +608,7 @@ impl Kernel {
                     chip.mpu().enable_app_mpu();
                     scheduler_timer.arm();
 
-                    // Call PendSV here: process.new_switch_to();
+                    // Later, call PendSV here instead of SVC: process.new_switch_to();
                     let context_switch_reason = process.switch_to();
 
                     scheduler_timer.disarm();

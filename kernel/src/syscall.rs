@@ -546,6 +546,26 @@ pub trait UserspaceKernelBoundary {
         state: &mut Self::StoredState,
     ) -> Result<(), ()>;
 
+    /// Updates process stack pointer after a syscall occurs
+    unsafe fn update_stack_pointer(
+        &self,
+        new_stack_pointer: *const usize,
+        state: &mut Self::StoredState,
+    );
+
+    /// Updates process registers after a syscall occurs
+    unsafe fn update_process_registers(
+        &self,
+        new_process_regs: [usize; 8],
+        state: &mut Self::StoredState,
+    );
+
+    /// Updates yield pc after a syscall occurs
+    unsafe fn update_yield_pc(&self, new_yield_pc: usize, state: &mut Self::StoredState);
+
+    /// Updates psr after a syscall occurs
+    unsafe fn update_psr(&self, new_psr: usize, state: &mut Self::StoredState);
+
     /// Set the return value the process should see when it begins executing
     /// again after the syscall. This will only be called after a process has
     /// called a syscall.
@@ -637,17 +657,16 @@ pub trait UserspaceKernelBoundary {
 
     /// New funciton to update the PSP and ProcessRegs global variables and set
     /// the PendSV bit
-    unsafe fn new_switch_to_process<C: Chip>(&self, chip: &C, state: &mut Self::StoredState);
+    unsafe fn new_switch_to_process<C: Chip>(
+        &self,
+        chip: &C,
+        process: process::ProcessId,
+        state: &mut Self::StoredState,
+    );
 
     /// New function to handle svc call in handler mode, called from the svc
     /// handler
-    unsafe extern "C" fn handle_svc_call<KR: KernelResources<C>, C: Chip>(
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
-        state: &mut Self::StoredState,
-        resources: &KR,
-        process: &dyn process::Process,
-    );
+    unsafe extern "C" fn handle_svc_call<KR: KernelResources<C>, C: Chip>(resources: &KR);
 
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by the stored state for that process.

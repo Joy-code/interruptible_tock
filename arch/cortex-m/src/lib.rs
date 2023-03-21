@@ -146,6 +146,7 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
     );
 }
 
+/*
 /// Handler of `svc` instructions on ARMv7-M.
 ///
 /// For documentation of this function, please see
@@ -172,38 +173,38 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     mov r0, #1
     msr CONTROL, r0
     /* CONTROL writes must be followed by ISB */
-    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+/* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
     isb
 
-    // This is a special address to return Thread mode with Process stack
+// This is a special address to return Thread mode with Process stack
     movw lr, #0xfffd
     movt lr, #0xffff
-    // Switch to the app.
+// Switch to the app.
     bx lr
 
-  100: // to_kernel
-    // An application called a syscall. We mark this in the global variable
-    // `SYSCALL_FIRED` which is stored in the syscall file.
-    // `UserspaceKernelBoundary` will use this variable to decide why the app
-    // stopped executing.
+100: // to_kernel
+     // An application called a syscall. We mark this in the global variable
+     // `SYSCALL_FIRED` which is stored in the syscall file.
+     // `UserspaceKernelBoundary` will use this variable to decide why the app
+     // stopped executing.
     ldr r0, =SYSCALL_FIRED
     mov r1, #1
     str r1, [r0, #0]
 
-    // Set thread mode to privileged as we switch back to the kernel.
+// Set thread mode to privileged as we switch back to the kernel.
     mov r0, #0
     msr CONTROL, r0
-    /* CONTROL writes must be followed by ISB */
-    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+/* CONTROL writes must be followed by ISB */
+/* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
     isb
 
-    // This is a special address to return Thread mode with Main stack
+// This is a special address to return Thread mode with Main stack
     movw LR, #0xFFF9
     movt LR, #0xFFFF
     bx lr",
         options(noreturn)
     );
-}
+}*/
 
 /// Modified handler of `svc` instructions on ARMv7-M
 /// that processes SVC calls directly in handler mode.
@@ -216,7 +217,6 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     target_feature = "thumb-mode",
     target_os = "none"
 ))]
-#[naked]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
     use core::arch::asm;
     asm!(
@@ -224,13 +224,23 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     // When execution returns here we have switched back to the kernel from the
     // application.
 
-    // Push non-hardware-stacked registers into the saved state for the
+    // Push non-hardware-stacked registers (r4-r11) into the saved state for the
     // application.
-    stmia r1, {{r4-r11}}
+    ldr r0, =PROCESS_REGS
+    str r4, [r0, #0]
+    str r5, [r0, #4]
+    str r6, [r0, #8]
+    str r7, [r0, #12]
+    str r8, [r0, #16]
+    str r9, [r0, #20]
+    str r10, [r0, #24]
+    str r11, [r0, #28]
 
     // Update the user stack pointer with the current value after the
     // application has executed.
-    mrs r0, PSP   // r0 = PSP
+    ldr r0, =PROCESS_STACK_POINTER
+    mrs r1, PSP
+    str r1, [r0, #0]
 
     // Need to restore r6, r7 and r12 since we clobbered them when switching to and
     // from the app.
@@ -238,12 +248,12 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     mov r7, r3
     mov r9, r12
 
+    // Call external function (i.e., syscall.handle_svc_call()) to determine reason 
+    // for context switch and handle syscall accordingly
 
-    // Call external function to determine reason for context switch and 
-    // handle syscall accordingly
-
-    // {fill regs with fn arguments}
-    call syscall.handle_svc_call
+    // (pass reference to syscall.rs)
+    // (fill regs with fn arguments -- i.e., kernel resources)
+    bl handle_svc_call
 
     // Switch back to thread mode with MSP
     mov r0, #0
@@ -256,8 +266,6 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     movw LR, #0xFFF9
     movt LR, #0xFFFF
     bx lr",
-    inout("r0") PROCESS_STACK_POINTER,
-    inout("r1") PROCESS_REGS,
     out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, out("r10") _,
     out("r11") _, out("r12") _
     );
@@ -273,7 +281,6 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     target_feature = "thumb-mode",
     target_os = "none"
 ))]
-#[naked]
 pub unsafe extern "C" fn pendsv_handler_arm_v7m() {
     use core::arch::asm;
     asm!(
@@ -288,17 +295,13 @@ pub unsafe extern "C" fn pendsv_handler_arm_v7m() {
         mov r3, r7
         mov r12, r9
 
-        // The arguments passed in are:
-        // - `r0` is the bottom of the user stack
-        // - `r1` is a reference to the process registers
-
         // Load bottom of stack into Process Stack Pointer.
-        msr psp, r0  // PSP = r0
-
+        msr psp, PROCESS_STACK_POINTER
+    
         // Load non-hardware-stacked registers from the process stored state. Ensure
         // that the address register (right now r1) is stored in a callee saved
         // register.
-        ldmia r1, {{r4-r11}}
+        ldmia PROCESS_REGS, {{r4-r11}}
 
         // If we get here, then this is a context switch from the kernel to the
         // application. Set thread mode to unprivileged to run the application.
@@ -314,8 +317,6 @@ pub unsafe extern "C" fn pendsv_handler_arm_v7m() {
         // Switch to the app.
         bx lr
         ",
-        inout("r0") PROCESS_STACK_POINTER,
-        in("r1") PROCESS_REGS,
         out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, out("r10") _,
         out("r11") _, out("r12") _
     );

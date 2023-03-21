@@ -246,6 +246,38 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.header.get_binary_version()
     }
 
+    fn update_stack_pointer(&self, new_sp: *const usize) {
+        self.stored_state.map_or((), |stored_state| unsafe {
+            self.chip
+                .userspace_kernel_boundary()
+                .update_stack_pointer(new_sp, stored_state);
+        })
+    }
+
+    fn update_registers(&self, new_regs: [usize; 8]) {
+        self.stored_state.map_or((), |stored_state| unsafe {
+            self.chip
+                .userspace_kernel_boundary()
+                .update_process_registers(new_regs, stored_state);
+        })
+    }
+
+    fn update_yield_pc(&self, new_yield_pc: usize) {
+        self.stored_state.map_or((), |stored_state| unsafe {
+            self.chip
+                .userspace_kernel_boundary()
+                .update_yield_pc(new_yield_pc, stored_state);
+        })
+    }
+
+    fn update_psr(&self, new_psr: usize) {
+        self.stored_state.map_or((), |stored_state| unsafe {
+            self.chip
+                .userspace_kernel_boundary()
+                .update_psr(new_psr, stored_state);
+        })
+    }
+
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
         // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
@@ -1173,9 +1205,11 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // we pass are valid, ensuring this context switch is safe.
         // Therefore we encapsulate the `unsafe`.
         self.stored_state.map_or((), |stored_state| unsafe {
-            self.chip
-                .userspace_kernel_boundary()
-                .new_switch_to_process(self.chip, stored_state);
+            self.chip.userspace_kernel_boundary().new_switch_to_process(
+                self.chip,
+                self.processid(),
+                stored_state,
+            );
         });
     }
 

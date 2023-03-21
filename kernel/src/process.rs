@@ -194,6 +194,11 @@ impl ProcessId {
         self.kernel
             .process_map_or(None, *self, |process| process.get_storage_permissions())
     }
+
+    /// Returns a reference to the process corresponding to the ProcessId struct.
+    pub fn get_process(&self) -> Option<&dyn Process> {
+        return self.kernel.get_process(*self);
+    }
 }
 
 /// A compressed form of an Application Identifer.
@@ -227,6 +232,18 @@ pub trait Process {
     /// as specified in a TBF Program Header; if the Userspace Binary
     /// only has a TBF Main Header, returns 0.
     fn binary_version(&self) -> u32;
+
+    /// Update the (minimum) stack pointer in the process's state
+    fn update_stack_pointer(&self, new_loc: *const usize);
+
+    /// Update the process's saved register state
+    fn update_registers(&self, new_regs: [usize; 8]);
+
+    /// Update the process's yield pc
+    fn update_yield_pc(&self, new_yield_pc: usize);
+
+    /// Update the process's program status register
+    fn update_psr(&self, new_psr: usize);
 
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app
