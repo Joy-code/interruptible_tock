@@ -2,10 +2,13 @@
 
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
+#![feature(asm_const)]
 #![feature(naked_functions)]
 #![no_std]
 
 use core::fmt::Write;
+use kernel::platform::chip::Chip;
+use kernel::platform::platform::KernelResources;
 
 pub mod mpu;
 pub mod nvic;
@@ -59,6 +62,9 @@ pub mod systick;
 //   (during context switches). See tock/tock#2582 for further discussion of
 //   this issue.
 pub trait CortexMVariant {
+    type C: Chip;
+    type KR: KernelResources<Self::C>;
+
     /// All ISRs not caught by a more specific handler are caught by this
     /// handler. This must ensure the interrupt is disabled (per Tock's
     /// interrupt model) and then as quickly as possible resume the main thread
@@ -217,8 +223,12 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     target_feature = "thumb-mode",
     target_os = "none"
 ))]
-pub unsafe extern "C" fn svc_handler_arm_v7m() {
+#[naked]
+pub unsafe extern "C" fn svc_handler_arm_v7m<V: CortexMVariant>() {
     use core::arch::asm;
+
+    use kernel::syscall::UserspaceKernelBoundary;
+    use syscall::SysCall;
     asm!(
     "
     // When execution returns here we have switched back to the kernel from the
@@ -242,18 +252,9 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     mrs r1, PSP
     str r1, [r0, #0]
 
-    // Need to restore r6, r7 and r12 since we clobbered them when switching to and
-    // from the app.
-    mov r6, r2
-    mov r7, r3
-    mov r9, r12
-
     // Call external function (i.e., syscall.handle_svc_call()) to determine reason 
     // for context switch and handle syscall accordingly
-
-    // (pass reference to syscall.rs)
-    // (fill regs with fn arguments -- i.e., kernel resources)
-    bl handle_svc_call
+    bl {handle_svc_call}
 
     // Switch back to thread mode with MSP
     mov r0, #0
@@ -266,8 +267,7 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     movw LR, #0xFFF9
     movt LR, #0xFFFF
     bx lr",
-    out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, out("r10") _,
-    out("r11") _, out("r12") _
+    handle_svc_call = sym SysCall::<V>::handle_svc_call::<V::KR, V::C>, options(noreturn)
     );
 }
 
@@ -1044,7 +1044,7 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
 }
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
-pub unsafe extern "C" fn svc_handler_arm_v7m() {
+pub unsafe extern "C" fn svc_handler_arm_v7m<C: CortexMVariant>() {
     unimplemented!()
 }
 

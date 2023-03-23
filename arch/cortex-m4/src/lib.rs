@@ -5,6 +5,8 @@
 #![no_std]
 
 use core::fmt::Write;
+use kernel::platform::chip::Chip;
+use kernel::platform::platform::KernelResources;
 
 pub mod mpu {
     pub type MPU = cortexm::mpu::MPU<8, 32>;
@@ -21,12 +23,15 @@ pub use cortexm::CortexMVariant;
 // Enum with no variants to ensure that this type is not instantiable. It is
 // only used to pass architecture-specific constants and functions via the
 // `CortexMVariant` trait.
-pub enum CortexM4 {}
+pub enum CortexM4<C: Chip, KR: KernelResources<C>> {}
 
-impl cortexm::CortexMVariant for CortexM4 {
+impl<C: Chip, KR: KernelResources<C>> cortexm::CortexMVariant for CortexM4<C, KR> {
+    type C = C;
+    type KR = KR;
+
     const GENERIC_ISR: unsafe extern "C" fn() = cortexm::generic_isr_arm_v7m;
     const SYSTICK_HANDLER: unsafe extern "C" fn() = cortexm::systick_handler_arm_v7m;
-    const SVC_HANDLER: unsafe extern "C" fn() = cortexm::svc_handler_arm_v7m;
+    const SVC_HANDLER: unsafe extern "C" fn() = cortexm::svc_handler_arm_v7m::<Self>;
     const PENDSV_HANDLER: unsafe extern "C" fn() = cortexm::pendsv_handler_arm_v7m;
     const HARD_FAULT_HANDLER: unsafe extern "C" fn() = cortexm::hard_fault_handler_arm_v7m;
 
@@ -53,5 +58,11 @@ impl cortexm::CortexMVariant for CortexM4 {
 }
 
 pub mod syscall {
-    pub type SysCall = cortexm::syscall::SysCall<crate::CortexM4>;
+    // use crate::Chip;
+    // use crate::KernelResources;
+
+    // type C<'a> = &'a dyn Chip;
+    // type KR<'a, C> = &'a dyn KernelResources<C>;
+
+    pub type SysCall = cortexm::syscall::SysCall<crate::CortexM4<C, KR<C>>>;
 }
