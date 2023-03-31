@@ -55,6 +55,9 @@ use components::rng::RngComponent;
 use components::si7021::SI7021Component;
 use components::spi::{SpiComponent, SpiSyscallComponent};
 
+use cortexm4::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4, CortexMVariant};
+use sam4l::chip::Sam4l;
+
 /// Support routines for debugging I/O.
 ///
 /// Note: Use of this module will trample any other USART3 configuration.
@@ -74,8 +77,49 @@ mod alarm_test;
 mod multi_timer_test;
 
 // State for loading apps.
-
 const NUM_PROCS: usize = 4;
+
+extern "C" {
+    // _estack is not really a function, but it makes the types work
+    // You should never actually invoke it!!
+    fn _estack();
+}
+
+/// Base vectors
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
+// used Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
+    _estack,
+    initialize_ram_jump_to_main,
+    unhandled_interrupt, // NMI
+    CortexM4::<Sam4l<Imix, Sam4lDefaultPeripherals>, Imix>::HARD_FAULT_HANDLER, // Hard Fault
+    unhandled_interrupt, // MemManage
+    unhandled_interrupt, // BusFault
+    unhandled_interrupt, // UsageFault
+    unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt,
+    CortexM4::<Sam4l<Imix, Sam4lDefaultPeripherals>, Imix>::SVC_HANDLER, // SVC
+    unhandled_interrupt,                                                 // DebugMon
+    unhandled_interrupt,
+    CortexM4::<Sam4l<Imix, Sam4lDefaultPeripherals>, Imix>::PENDSV_HANDLER, // PendSV
+    CortexM4::<Sam4l<Imix, Sam4lDefaultPeripherals>, Imix>::SYSTICK_HANDLER, // SysTick
+];
+
+/// IRQ vector
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
+// used Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+pub static IRQS: [unsafe extern "C" fn(); 80] =
+    [CortexM4::<Sam4l<Imix, Sam4lDefaultPeripherals>, Imix>::GENERIC_ISR; 80];
 
 // Constants related to the configuration of the 15.4 network stack
 // TODO: Notably, the radio MAC addresses can be configured from userland at the moment
@@ -97,7 +141,7 @@ const FAULT_RESPONSE: kernel::process::StopFaultPolicy = kernel::process::StopFa
 static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
 
-static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
+static mut CHIP: Option<&'static sam4l::chip::Sam4l<Imix, Sam4lDefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -210,7 +254,7 @@ impl SyscallDriverLookup for Imix {
     }
 }
 
-impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
+impl KernelResources<sam4l::chip::Sam4l<Imix, Sam4lDefaultPeripherals>> for Imix {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -351,7 +395,7 @@ pub unsafe fn main() {
 
     peripherals.setup_circular_deps();
     let chip = static_init!(
-        sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+        sam4l::chip::Sam4l<Imix, Sam4lDefaultPeripherals>,
         sam4l::chip::Sam4l::new(pm, peripherals)
     );
     CHIP = Some(chip);
