@@ -17,6 +17,11 @@ pub mod support;
 pub mod syscall;
 pub mod systick;
 
+/// Stores a reference to KernelResources
+#[no_mangle]
+#[used]
+pub static mut KERNEL_RESOURCES: *const usize = &0usize as *const usize;
+
 /// Trait to encapsulate differences in between Cortex-M variants
 ///
 /// This trait contains functions and other associated data (constants) which
@@ -254,6 +259,8 @@ pub unsafe extern "C" fn svc_handler_arm_v7m<V: CortexMVariant>() {
 
     // Call external function (i.e., syscall.handle_svc_call()) to determine reason 
     // for context switch and handle syscall accordingly
+    ldr r0, =KERNEL_RESOURCES
+    ldr r0, [r0, #0]
     bl {handle_svc_call}
 
     // Switch back to thread mode with MSP
@@ -285,23 +292,17 @@ pub unsafe extern "C" fn pendsv_handler_arm_v7m() {
     use core::arch::asm;
     asm!(
         "
-        // Rust `asm!()` macro (as of May 2021) will not let us mark r6, r7 and r9
-        // as clobbers. r6 and r9 is used internally by LLVM, and r7 is used for
-        // the frame pointer. However, in the process of restoring and saving the
-        // process's registers, we do in fact clobber r6, r7 and r9. So, we work
-        // around this by doing our own manual saving of r6 using r2, r7 using r3,
-        // r9 using r12, and then mark those as clobbered.
-        mov r2, r6
-        mov r3, r7
-        mov r12, r9
-
         // Load bottom of stack into Process Stack Pointer.
-        msr psp, PROCESS_STACK_POINTER
-    
+        ldr r0, =PROCESS_STACK_POINTER
+        ldr r0, [r0, #0]
+        msr psp, r0
+
         // Load non-hardware-stacked registers from the process stored state. Ensure
         // that the address register (right now r1) is stored in a callee saved
         // register.
-        ldmia PROCESS_REGS, {{r4-r11}}
+        ldr r1, =PROCESS_REGS
+        ldr r1, [r1, #0]
+        ldmia r1, {{r4-r11}}
 
         // If we get here, then this is a context switch from the kernel to the
         // application. Set thread mode to unprivileged to run the application.

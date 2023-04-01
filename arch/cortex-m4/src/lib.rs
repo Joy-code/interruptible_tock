@@ -5,6 +5,7 @@
 #![no_std]
 
 use core::fmt::Write;
+use core::marker::PhantomData;
 use kernel::platform::chip::Chip;
 use kernel::platform::platform::KernelResources;
 
@@ -20,10 +21,15 @@ pub use cortexm::systick;
 pub use cortexm::unhandled_interrupt;
 pub use cortexm::CortexMVariant;
 
+pub use cortexm::KERNEL_RESOURCES;
+
 // Enum with no variants to ensure that this type is not instantiable. It is
 // only used to pass architecture-specific constants and functions via the
 // `CortexMVariant` trait.
-pub enum CortexM4<C: Chip, KR: KernelResources<C>> {}
+pub enum CortexM4<C: Chip, KR: KernelResources<C>> {
+    _PhantomC(PhantomData<C>),
+    _PhantomKR(PhantomData<KR>),
+}
 
 impl<C: Chip, KR: KernelResources<C>> cortexm::CortexMVariant for CortexM4<C, KR> {
     type C = C;
@@ -58,11 +64,5 @@ impl<C: Chip, KR: KernelResources<C>> cortexm::CortexMVariant for CortexM4<C, KR
 }
 
 pub mod syscall {
-    // use crate::Chip;
-    // use crate::KernelResources;
-
-    // type C<'a> = &'a dyn Chip;
-    // type KR<'a, C> = &'a dyn KernelResources<C>;
-
-    pub type SysCall = cortexm::syscall::SysCall<crate::CortexM4<C, KR<C>>>;
+    pub type SysCall<C, KR> = cortexm::syscall::SysCall<crate::CortexM4<C, KR>>;
 }

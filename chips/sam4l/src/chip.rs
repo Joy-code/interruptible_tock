@@ -5,15 +5,16 @@ use crate::pm;
 use core::fmt::Write;
 use cortexm4::{self, CortexM4, CortexMVariant};
 use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::platform::KernelResources;
 
-pub struct Sam4l<I: InterruptService + 'static> {
+pub struct Sam4l<KR: KernelResources<Self>, I: InterruptService + 'static> {
     mpu: cortexm4::mpu::MPU,
-    userspace_kernel_boundary: cortexm4::syscall::SysCall,
+    userspace_kernel_boundary: cortexm4::syscall::SysCall<Self, KR>,
     pub pm: &'static crate::pm::PowerManager,
     interrupt_service: &'static I,
 }
 
-impl<I: InterruptService + 'static> Sam4l<I> {
+impl<KR: KernelResources<Self>, I: InterruptService + 'static> Sam4l<KR, I> {
     pub unsafe fn new(pm: &'static crate::pm::PowerManager, interrupt_service: &'static I) -> Self {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
@@ -230,9 +231,9 @@ impl InterruptService for Sam4lDefaultPeripherals {
     }
 }
 
-impl<I: InterruptService + 'static> Chip for Sam4l<I> {
+impl<KR: KernelResources<Self>, I: InterruptService + 'static> Chip for Sam4l<KR, I> {
     type MPU = cortexm4::mpu::MPU;
-    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
+    type UserspaceKernelBoundary = cortexm4::syscall::SysCall<Self, KR>;
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -260,7 +261,7 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
         &self.mpu
     }
 
-    fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {
+    fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall<Self, KR> {
         &self.userspace_kernel_boundary
     }
 
@@ -290,6 +291,6 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
-        CortexM4::print_cortexm_state(writer);
+        CortexM4::<Self, KR>::print_cortexm_state(writer);
     }
 }
