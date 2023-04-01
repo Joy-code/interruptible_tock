@@ -58,6 +58,8 @@ use components::spi::{SpiComponent, SpiSyscallComponent};
 use cortexm4::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4, CortexMVariant};
 use sam4l::chip::Sam4l;
 
+use cortexm4::KERNEL_RESOURCES;
+
 /// Support routines for debugging I/O.
 ///
 /// Note: Use of this module will trample any other USART3 configuration.
@@ -758,6 +760,8 @@ pub unsafe fn main() {
         //credentials_checking_policy: checker,
         credentials_checking_policy: &(),
     };
+
+    cortexm4::KERNEL_RESOURCES = (&imix as *const Imix) as *const usize;
 
     // Need to initialize the UART for the nRF51 serialization.
     imix.nrf51822.initialize();
