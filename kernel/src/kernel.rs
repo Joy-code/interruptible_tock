@@ -816,6 +816,8 @@ impl Kernel {
         // Hook for process debugging.
         process.debug_syscall_called(syscall);
 
+        debug!("kernel.handle_syscall()\n");
+
         // Enforce platform-specific syscall filtering here.
         //
         // Before continuing to handle non-yield syscalls the kernel first
