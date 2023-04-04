@@ -1,6 +1,6 @@
 //! Interrupt mapping and DMA channel setup.
 
-use crate::pm;
+// use crate::pm;
 
 use core::fmt::Write;
 use cortexm4::{self, CortexM4, CortexMVariant};

@@ -1197,9 +1197,11 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn new_switch_to(&self) {
         // Cannot switch to an invalid process
-        if !self.is_running() {
-            return;
-        }
+        // if !self.is_running() {
+        //     return;
+        // }
+
+        debug!("In process.new_switch_to()\n");
 
         // Switch to the process. We guarantee that the memory pointers
         // we pass are valid, ensuring this context switch is safe.
@@ -1210,6 +1212,11 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 self.processid(),
                 stored_state,
             );
+            debug!(
+                "Called process.new_switch_to_process() on process {}",
+                self.processid().id()
+            );
+            panic!("new_switch_to");
         });
     }
 

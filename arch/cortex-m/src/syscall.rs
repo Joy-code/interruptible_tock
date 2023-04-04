@@ -377,13 +377,22 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
                 // This is necessary to retrieve the process in order to process its SVC call in handler mode
                 PROCESS_ID = Some(process_id);
 
+                debug!(
+                    "In process.new_switch_to_process() for process {}\n",
+                    process_id.id()
+                );
+
                 // Set the PendSV bit to switch to userspace
                 scb::set_pendsv();
+
+                debug!("PendSV Bit Set in process.new_switch_to_process()\n");
             });
         }
     }
 
     unsafe extern "C" fn handle_svc_call<KR: KernelResources<C>, C: Chip>(resources: &KR) {
+        debug!("In handle_svc_call\n");
+
         // Determine which process called SVC
         let pid_copy: process::ProcessId;
         let process = match PROCESS_ID {

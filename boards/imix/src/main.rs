@@ -58,8 +58,6 @@ use components::spi::{SpiComponent, SpiSyscallComponent};
 use cortexm4::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4, CortexMVariant};
 use sam4l::chip::Sam4l;
 
-use cortexm4::KERNEL_RESOURCES;
-
 /// Support routines for debugging I/O.
 ///
 /// Note: Use of this module will trample any other USART3 configuration.

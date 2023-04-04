@@ -11,7 +11,6 @@ use core::slice;
 
 use crate::capabilities;
 use crate::config;
-use crate::debug;
 use crate::deferred_call::DeferredCall;
 use crate::errorcode::ErrorCode;
 use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
@@ -24,6 +23,7 @@ use crate::platform::platform::KernelResources;
 use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
+use crate::process::FunctionCall;
 use crate::process::{self, Process, ProcessId, ShortID, Task};
 use crate::process_checker::{self, CredentialsCheckingPolicy};
 use crate::process_loading::ProcessLoadError;
@@ -34,6 +34,7 @@ use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
 use crate::upcall::{Upcall, UpcallId};
 use crate::utilities::cells::{NumericCellExt, OptionalCell};
+use crate::{debug, debug_flush_queue};
 
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfParseError;
@@ -470,10 +471,12 @@ impl Kernel {
         &self,
         resources: &KR,
         chip: &C,
-        ipc: Option<&ipc::IPC<NUM_PROCS>>,
-        capability: &dyn capabilities::MainLoopCapability,
+        _ipc: Option<&ipc::IPC<NUM_PROCS>>,
+        _capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
         resources.watchdog().setup();
+        debug!("In main kernel loop\n");
+
         // Before we begin, verify that deferred calls were soundly setup.
         // DeferredCall::verify_setup();
 
@@ -483,8 +486,28 @@ impl Kernel {
         match scheduler.next() {
             SchedulingDecision::RunProcess((processid, _)) => {
                 self.process_map_or((), processid, |process| {
+                    resources
+                        .context_switch_callback()
+                        .context_switch_hook(process);
+                    process
+                        .enqueue_init_task(&super::kernel::KernelProcessInitCapability {})
+                        .expect("enqueue");
+                    match process.dequeue_task().expect("dequeue") {
+                        Task::FunctionCall(cb) => {
+                            process.set_process_function(cb);
+                        }
+                        _ => panic!("wrong"),
+                    }
+                    process.setup_mpu();
+                    chip.mpu().enable_app_mpu();
                     process.new_switch_to();
+                    debug!(
+                        "Called process.new_switch_to on process {}\n",
+                        processid.id()
+                    );
+                    chip.mpu().disable_app_mpu();
                 });
+                // panic!("kernel loop");
             }
             SchedulingDecision::TrySleep => {
                 debug!("No process selected, going to sleep.\n");
