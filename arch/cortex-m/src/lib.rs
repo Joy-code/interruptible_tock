@@ -22,6 +22,11 @@ pub mod systick;
 #[used]
 pub static mut KERNEL_RESOURCES: *const usize = &0usize as *const usize;
 
+/// Stores the current value of the kernel registers
+#[no_mangle]
+#[used]
+pub static mut KERNEL_REGS: [usize; 8] = [0; 8];
+
 /// Trait to encapsulate differences in between Cortex-M variants
 ///
 /// This trait contains functions and other associated data (constants) which
@@ -263,6 +268,17 @@ pub unsafe extern "C" fn svc_handler_arm_v7m<V: CortexMVariant>() {
     ldr r0, [r0, #0]
     bl {handle_svc_call}
 
+    // Restore all non hardware-stacked kernel registers
+    ldr r0, =KERNEL_REGS
+    ldr r4, [r0, #0]
+    ldr r5, [r0, #4]
+    ldr r6, [r0, #8]
+    ldr r7, [r0, #12]
+    ldr r8, [r0, #16]
+    ldr r9, [r0, #20]
+    ldr r10, [r0, #24]
+    ldr r11, [r0, #28]
+
     // Switch back to thread mode with MSP
     mov r0, #0
     msr CONTROL, r0
@@ -292,6 +308,17 @@ pub unsafe extern "C" fn pendsv_handler_arm_v7m() {
     use core::arch::asm;
     asm!(
         "
+        // Save all non hardware-stacked kernel registers
+        ldr r0, =KERNEL_REGS
+        str r4, [r0, #0]
+        str r5, [r0, #4]
+        str r6, [r0, #8]
+        str r7, [r0, #12]
+        str r8, [r0, #16]
+        str r9, [r0, #20]
+        str r10, [r0, #24]
+        str r11, [r0, #28]
+
         // Load bottom of stack into Process Stack Pointer.
         ldr r0, =PROCESS_STACK_POINTER
         ldr r0, [r0, #0]
