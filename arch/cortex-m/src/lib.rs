@@ -27,6 +27,11 @@ pub static mut KERNEL_RESOURCES: *const usize = &0usize as *const usize;
 #[used]
 pub static mut KERNEL_REGS: [usize; 8] = [0; 8];
 
+/// Stores the current value of the main stack pointer
+#[no_mangle]
+#[used]
+pub static mut MAIN_STACK_POINTER: *const usize = &0usize as *const usize;
+
 /// Trait to encapsulate differences in between Cortex-M variants
 ///
 /// This trait contains functions and other associated data (constants) which
@@ -269,25 +274,30 @@ pub unsafe extern "C" fn svc_handler_arm_v7m<V: CortexMVariant>() {
     bl {handle_svc_call}
 
     // Restore all non hardware-stacked kernel registers
-    ldr r0, =KERNEL_REGS
-    ldr r4, [r0, #0]
-    ldr r5, [r0, #4]
-    ldr r6, [r0, #8]
-    ldr r7, [r0, #12]
-    ldr r8, [r0, #16]
-    ldr r9, [r0, #20]
-    ldr r10, [r0, #24]
-    ldr r11, [r0, #28]
+    // ldr r0, =KERNEL_REGS
+    // ldr r4, [r0, #0]
+    // ldr r5, [r0, #4]
+    // ldr r6, [r0, #8]
+    // ldr r7, [r0, #12]
+    // ldr r8, [r0, #16]
+    // ldr r9, [r0, #20]
+    // ldr r10, [r0, #24]
+    // ldr r11, [r0, #28]
 
-    // Switch back to thread mode with MSP
-    mov r0, #0
+    // Restore the main stack pointer
+    // ldr r0, =MAIN_STACK_POINTER
+    // ldr r0, [r0, #0]
+    // msr msp, r0
+
+    // Switch back to thread mode with PSP
+    mov r0, #1
     msr CONTROL, r0
     /* CONTROL writes must be followed by ISB */
     /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
     isb
 
-    // This is a special address to return Thread mode with Main stack
-    movw LR, #0xFFF9
+    // This is a special address to return Thread mode with Proess Stack Pointer
+    movw LR, #0xFFFD
     movt LR, #0xFFFF
     bx lr",
     handle_svc_call = sym SysCall::<V>::handle_svc_call::<V::KR, V::C>, options(noreturn)
@@ -309,17 +319,22 @@ pub unsafe extern "C" fn pendsv_handler_arm_v7m() {
     asm!(
         "
         // Save all non hardware-stacked kernel registers
-        ldr r0, =KERNEL_REGS
-        str r4, [r0, #0]
-        str r5, [r0, #4]
-        str r6, [r0, #8]
-        str r7, [r0, #12]
-        str r8, [r0, #16]
-        str r9, [r0, #20]
-        str r10, [r0, #24]
-        str r11, [r0, #28]
+        // ldr r0, =KERNEL_REGS
+        // str r4, [r0, #0]
+        // str r5, [r0, #4]
+        // str r6, [r0, #8]
+        // str r7, [r0, #12]
+        // str r8, [r0, #16]
+        // str r9, [r0, #20]
+        // str r10, [r0, #24]
+        // str r11, [r0, #28]
 
-        // Load bottom of stack into Process Stack Pointer.
+        // Save the Main Stack Pointer
+        // ldr r0, =MAIN_STACK_POINTER
+        // mrs r1, MSP
+        // str r1, [r0, #0]
+
+        // Load bottom of stack into Process Stack Pointer register.
         ldr r0, =PROCESS_STACK_POINTER
         ldr r0, [r0, #0]
         msr psp, r0
@@ -328,8 +343,14 @@ pub unsafe extern "C" fn pendsv_handler_arm_v7m() {
         // that the address register (right now r1) is stored in a callee saved
         // register.
         ldr r1, =PROCESS_REGS
-        ldr r1, [r1, #0]
-        ldmia r1, {{r4-r11}}
+        ldr r4, [r1, #0]
+        ldr r5, [r1, #4]
+        ldr r6, [r1, #8]
+        ldr r7, [r1, #12]
+        ldr r8, [r1, #16]
+        ldr r9, [r1, #20]
+        ldr r10, [r1, #24]
+        ldr r11, [r1, #28]
 
         // If we get here, then this is a context switch from the kernel to the
         // application. Set thread mode to unprivileged to run the application.

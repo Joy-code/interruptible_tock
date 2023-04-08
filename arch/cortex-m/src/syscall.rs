@@ -388,6 +388,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
                 debug!("PendSV Bit Set in process.new_switch_to_process()\n");
             });
         }
+
+        debug!("Hello. testing. \n");
     }
 
     unsafe extern "C" fn handle_svc_call<KR: KernelResources<C>, C: Chip>(resources: &KR) {
@@ -473,6 +475,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         };
 
         // Return back to the svc_handler
+        debug!("Returning to svc handler\n");
     }
 
     unsafe fn print_context(

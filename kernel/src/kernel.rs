@@ -11,6 +11,7 @@ use core::slice;
 
 use crate::capabilities;
 use crate::config;
+use crate::debug;
 use crate::deferred_call::DeferredCall;
 use crate::errorcode::ErrorCode;
 use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
@@ -34,7 +35,6 @@ use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
 use crate::upcall::{Upcall, UpcallId};
 use crate::utilities::cells::{NumericCellExt, OptionalCell};
-use crate::{debug, debug_flush_queue};
 
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfParseError;

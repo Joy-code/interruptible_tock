@@ -1216,7 +1216,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 "Called process.new_switch_to_process() on process {}",
                 self.processid().id()
             );
-            panic!("new_switch_to");
         });
     }
 
