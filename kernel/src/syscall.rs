@@ -660,6 +660,7 @@ pub trait UserspaceKernelBoundary {
     unsafe fn new_switch_to_process<C: Chip>(
         &self,
         chip: &C,
+        // process: &dyn process::Process,
         process: process::ProcessId,
         state: &mut Self::StoredState,
     );

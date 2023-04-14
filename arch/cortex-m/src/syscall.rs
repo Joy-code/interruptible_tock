@@ -18,6 +18,7 @@ use kernel::process;
 
 use crate::dwt;
 use crate::PROCESS_ID;
+// use crate::PROCESS;
 
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
@@ -52,6 +53,11 @@ pub static mut PROCESS_STACK_POINTER: *const usize = &0usize as *const usize;
 #[no_mangle]
 #[used]
 pub static mut PROCESS_REGS: [usize; 8] = [0; 8];
+
+/// Stores a reference to current Process Stored State
+#[no_mangle]
+#[used]
+pub static mut PROCESS_STATE: *const usize = &0usize as *const usize;
 
 /// Stores the current value of the benchmarking counter
 #[no_mangle]
@@ -367,6 +373,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         &self,
         chip: &C,
         process_id: process::ProcessId,
+        // process: &dyn process::Process,
         state: &mut CortexMStoredState,
     ) {
         unsafe {
@@ -378,7 +385,11 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
                 // Update ProcessId global variable
                 // This is necessary to retrieve the process in order to process its SVC call in handler mode
-                PROCESS_ID = (&process_id as *const process::ProcessId) as *const usize;
+                PROCESS_ID = (&process_id as *const _) as *const usize;
+                // PROCESS = process;
+
+                // Save Process State (CortexMSavedState)
+                PROCESS_STATE = (state as *const _) as *const usize;
 
                 // debug!(
                 //     "In process.new_switch_to_process() for process {}\n",
@@ -387,8 +398,6 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
                 // Set the PendSV bit to switch to userspace
                 scb::set_pendsv();
-
-                // debug!("PendSV Bit Set in process.new_switch_to_process()\n");
             });
         }
     }
@@ -408,6 +417,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         COUNTER += 1;
 
         let process = curr_process.get_process();
+        let state = unsafe { &mut *(PROCESS_STATE as *mut CortexMStoredState) };
 
         // We need to validate that the stack pointer and the SVC frame are
         // within process accessible memory. Alignment is guaranteed by
@@ -418,10 +428,10 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
                 // Update process state with current stack pointer and process registers.
                 let new_stack_pointer = read_volatile(&PROCESS_STACK_POINTER);
-                p.update_stack_pointer(new_stack_pointer);
+                state.psp = new_stack_pointer as usize;
 
                 let new_process_regs = read_volatile(&PROCESS_REGS);
-                p.update_registers(new_process_regs);
+                state.regs = new_process_regs;
 
                 // Check for invalid stack pointer
                 let process_info = p.get_addresses();
@@ -441,8 +451,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
                 // syscall (i.e. we return a value to the app immediately) then this
                 // will have no effect. If we are doing something like `yield()`,
                 // however, then we need to have this state.
-                p.update_yield_pc(ptr::read(new_stack_pointer.offset(6)));
-                p.update_psr(ptr::read(new_stack_pointer.offset(7)));
+                state.yield_pc = ptr::read(new_stack_pointer.offset(6));
+                state.psr = ptr::read(new_stack_pointer.offset(7));
 
                 // Get the syscall arguments and return them along with the syscall.
                 // It's possible the app did something invalid, in which case we put

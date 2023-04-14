@@ -1197,9 +1197,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn new_switch_to(&self) {
         // Cannot switch to an invalid process
-        // if !self.is_running() {
-        //     return;
-        // }
+        if !self.is_running() {
+            return;
+        }
 
         // debug!("In process.new_switch_to()\n");
 

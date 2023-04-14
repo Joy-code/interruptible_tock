@@ -11,6 +11,8 @@ use kernel::debug;
 use kernel::platform::chip::Chip;
 use kernel::platform::platform::KernelResources;
 
+use kernel::process;
+
 pub mod dwt;
 pub mod mpu;
 pub mod nvic;
@@ -24,11 +26,6 @@ pub mod systick;
 #[used]
 pub static mut KERNEL_RESOURCES: *const usize = &0usize as *const usize;
 
-/// Stores a reference to current Process ID
-#[no_mangle]
-#[used]
-pub static mut PROCESS_ID: *const usize = &0usize as *const usize;
-
 /// Stores the current value of the kernel registers
 #[no_mangle]
 #[used]
@@ -38,6 +35,16 @@ pub static mut KERNEL_REGS: [usize; 8] = [0; 8];
 #[no_mangle]
 #[used]
 pub static mut MAIN_STACK_POINTER: *const usize = &0usize as *const usize;
+
+/// Stores a reference to current Process ID
+#[no_mangle]
+#[used]
+pub static mut PROCESS_ID: *const usize = &0usize as *const usize;
+
+/// Stores a reference to current Process -- this doesn't work
+// #[no_mangle]
+// #[used]
+// pub static mut PROCESS: &dyn process::Process = &() as &dyn process::Process;
 
 /// Trait to encapsulate differences in between Cortex-M variants
 ///
