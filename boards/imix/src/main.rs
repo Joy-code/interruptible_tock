@@ -12,12 +12,12 @@
 mod imix_components;
 use capsules_core::alarm::AlarmDriver;
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
-use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::virtualizers::virtual_alarm::{self, VirtualMuxAlarm};
 use capsules_core::virtualizers::virtual_i2c::MuxI2C;
 use capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice;
+//use capsules_core::virtualizers::virtual_timer::MuxTimer;
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
-//use capsules_core::virtualizers::virtual_timer::MuxTimer;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
@@ -31,8 +31,8 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process_checker::basic::AppCheckerSha256;
 use kernel::scheduler::round_robin::RoundRobinSched;
 
-//use kernel::hil::time::Alarm;
 use kernel::hil::led::LedHigh;
+//use kernel::hil::time::Alarm;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};

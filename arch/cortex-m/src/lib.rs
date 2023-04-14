@@ -7,9 +7,11 @@
 #![no_std]
 
 use core::fmt::Write;
+use kernel::debug;
 use kernel::platform::chip::Chip;
 use kernel::platform::platform::KernelResources;
 
+pub mod dwt;
 pub mod mpu;
 pub mod nvic;
 pub mod scb;
@@ -241,7 +243,6 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
 #[naked]
 pub unsafe extern "C" fn svc_handler_arm_v7m<V: CortexMVariant>() {
     use core::arch::asm;
-
     use kernel::syscall::UserspaceKernelBoundary;
     use syscall::SysCall;
     asm!(
@@ -395,8 +396,8 @@ pub unsafe extern "C" fn generic_isr_arm_v7m() {
     isb
 
     // This is a special address to return Thread mode with Main stack
-    movw LR, #0xFFF9
-    movt LR, #0xFFFF
+    // movw LR, #0xFFF9
+    // movt LR, #0xFFFF
 
     // Now need to disable the interrupt that fired in the NVIC to ensure it
     // does not trigger again before the scheduler has a chance to handle it. We

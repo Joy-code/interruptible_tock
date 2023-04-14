@@ -16,6 +16,8 @@ use kernel::platform::chip::Chip;
 use kernel::platform::platform::KernelResources;
 use kernel::process;
 
+use crate::dwt;
+
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
 /// specific handler.
@@ -54,6 +56,11 @@ pub static mut PROCESS_REGS: [usize; 8] = [0; 8];
 #[no_mangle]
 #[used]
 pub static mut PROCESS_ID: Option<process::ProcessId> = None;
+
+/// Stores the current value of the benchmarking counter
+#[no_mangle]
+#[used]
+pub static mut COUNTER: usize = 0;
 
 // Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
 const SVC_FRAME_SIZE: usize = 32;
@@ -377,23 +384,29 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
                 // This is necessary to retrieve the process in order to process its SVC call in handler mode
                 PROCESS_ID = Some(process_id);
 
-                debug!(
-                    "In process.new_switch_to_process() for process {}\n",
-                    process_id.id()
-                );
+                // debug!(
+                //     "In process.new_switch_to_process() for process {}\n",
+                //     process_id.id()
+                // );
 
                 // Set the PendSV bit to switch to userspace
                 scb::set_pendsv();
 
-                debug!("PendSV Bit Set in process.new_switch_to_process()\n");
+                // debug!("PendSV Bit Set in process.new_switch_to_process()\n");
             });
         }
-
-        debug!("Hello. testing. \n");
     }
 
     unsafe extern "C" fn handle_svc_call<KR: KernelResources<C>, C: Chip>(resources: &KR) {
-        debug!("In handle_svc_call\n");
+        if COUNTER == 0 {
+            dwt::reset_timer();
+            dwt::start_timer();
+        } else if COUNTER == 100 {
+            dwt::stop_timer();
+            let num_cycles = dwt::get_time();
+            panic!("Num cycles is {}", num_cycles)
+        }
+        COUNTER += 1;
 
         // Determine which process called SVC
         let pid_copy: process::ProcessId;
@@ -410,7 +423,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         // hardware.
         match process {
             Some(p) => {
-                debug!("Found process {}\n", p.get_process_name());
+                // debug!("Found process {}\n", p.get_process_name());
 
                 // Update process state with current stack pointer and process registers.
                 let new_stack_pointer = read_volatile(&PROCESS_STACK_POINTER);
@@ -462,10 +475,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
                 match syscall {
                     Some(s) => {
                         kernel::Kernel::handle_syscall(resources, p, s);
-                        debug!("Called kernel.handle_syscall\n");
                     }
                     None => {
-                        debug!("Setting fault state");
                         p.set_fault_state();
                     }
                 };
@@ -475,7 +486,6 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         };
 
         // Return back to the svc_handler
-        debug!("Returning to svc handler\n");
     }
 
     unsafe fn print_context(

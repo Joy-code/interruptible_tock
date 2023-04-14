@@ -137,7 +137,8 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
     // allow this function to return
     //
     // Forever blink LEDs in an infinite loop
-    panic_blink_forever(leds)
+    // panic_blink_forever(leds)
+    loop {}
 }
 
 /// Generic panic entry.

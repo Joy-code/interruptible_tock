@@ -6,3 +6,4 @@ edition.workspace = true
 
 [dependencies]
 kernel = { path = "../../kernel" }
+capsules-core = { path = "../../capsules/core" }

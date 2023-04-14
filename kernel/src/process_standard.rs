@@ -1201,7 +1201,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         //     return;
         // }
 
-        debug!("In process.new_switch_to()\n");
+        // debug!("In process.new_switch_to()\n");
 
         // Switch to the process. We guarantee that the memory pointers
         // we pass are valid, ensuring this context switch is safe.

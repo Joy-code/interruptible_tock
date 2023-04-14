@@ -475,7 +475,6 @@ impl Kernel {
         _capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
         resources.watchdog().setup();
-        debug!("In main kernel loop\n");
 
         // Before we begin, verify that deferred calls were soundly setup.
         // DeferredCall::verify_setup();
@@ -816,7 +815,7 @@ impl Kernel {
         // Hook for process debugging.
         process.debug_syscall_called(syscall);
 
-        debug!("kernel.handle_syscall()\n");
+        // debug!("kernel.handle_syscall()\n");
 
         // Enforce platform-specific syscall filtering here.
         //
