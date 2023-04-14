@@ -666,7 +666,10 @@ pub trait UserspaceKernelBoundary {
 
     /// New function to handle svc call in handler mode, called from the svc
     /// handler
-    unsafe extern "C" fn handle_svc_call<KR: KernelResources<C>, C: Chip>(resources: &KR);
+    unsafe extern "C" fn handle_svc_call<KR: KernelResources<C>, C: Chip>(
+        resources: &KR,
+        process: &process::ProcessId,
+    );
 
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by the stored state for that process.

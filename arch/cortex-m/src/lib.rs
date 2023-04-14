@@ -24,6 +24,11 @@ pub mod systick;
 #[used]
 pub static mut KERNEL_RESOURCES: *const usize = &0usize as *const usize;
 
+/// Stores a reference to current Process ID
+#[no_mangle]
+#[used]
+pub static mut PROCESS_ID: *const usize = &0usize as *const usize;
+
 /// Stores the current value of the kernel registers
 #[no_mangle]
 #[used]
@@ -272,6 +277,8 @@ pub unsafe extern "C" fn svc_handler_arm_v7m<V: CortexMVariant>() {
     // for context switch and handle syscall accordingly
     ldr r0, =KERNEL_RESOURCES
     ldr r0, [r0, #0]
+    ldr r1, =PROCESS_ID
+    ldr r1, [r1, #0]
     bl {handle_svc_call}
 
     // Restore all non hardware-stacked kernel registers

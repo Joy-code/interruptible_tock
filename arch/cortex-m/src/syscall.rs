@@ -17,6 +17,7 @@ use kernel::platform::platform::KernelResources;
 use kernel::process;
 
 use crate::dwt;
+use crate::PROCESS_ID;
 
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
@@ -51,11 +52,6 @@ pub static mut PROCESS_STACK_POINTER: *const usize = &0usize as *const usize;
 #[no_mangle]
 #[used]
 pub static mut PROCESS_REGS: [usize; 8] = [0; 8];
-
-/// Stores the current ProcessID
-#[no_mangle]
-#[used]
-pub static mut PROCESS_ID: Option<process::ProcessId> = None;
 
 /// Stores the current value of the benchmarking counter
 #[no_mangle]
@@ -382,7 +378,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
                 // Update ProcessId global variable
                 // This is necessary to retrieve the process in order to process its SVC call in handler mode
-                PROCESS_ID = Some(process_id);
+                PROCESS_ID = (&process_id as *const process::ProcessId) as *const usize;
 
                 // debug!(
                 //     "In process.new_switch_to_process() for process {}\n",
@@ -397,7 +393,10 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         }
     }
 
-    unsafe extern "C" fn handle_svc_call<KR: KernelResources<C>, C: Chip>(resources: &KR) {
+    unsafe extern "C" fn handle_svc_call<KR: KernelResources<C>, C: Chip>(
+        resources: &KR,
+        curr_process: &process::ProcessId,
+    ) {
         if COUNTER == 0 {
             dwt::reset_timer();
             dwt::start_timer();
@@ -408,15 +407,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         }
         COUNTER += 1;
 
-        // Determine which process called SVC
-        let pid_copy: process::ProcessId;
-        let process = match PROCESS_ID {
-            Some(pid) => {
-                pid_copy = pid.clone();
-                pid_copy.get_process()
-            }
-            None => None,
-        };
+        let process = curr_process.get_process();
 
         // We need to validate that the stack pointer and the SVC frame are
         // within process accessible memory. Alignment is guaranteed by
